@@ -20,9 +20,6 @@ Agents keep adding parts you never learned. The quiz finds the parts of your sys
 - If your repository has a CODEOWNERS file, each person is quizzed on the parts they own, including those owned by their teams. Without one, you're quizzed on the whole system.
 - Both skills write only to `.archquiz/`. Quiz history is gitignored by default.
 
-## Status
-
-Early: used on one codebase so far.
 
 ## License
 
