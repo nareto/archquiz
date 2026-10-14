@@ -7,7 +7,7 @@ description: >-
   or uncovered areas, or when the user asks to refresh the area index.
 compatibility: Requires git and a coding agent that can read files and run shell commands.
 metadata:
-  version: "0.1.1"
+  version: "0.2.0"
 ---
 
 # Architecture quiz index
@@ -16,7 +16,7 @@ This skill maintains `.archquiz/` at the root of the current Git repository. The
 
 ## Rules
 
-- The index names areas and says where to start looking. It never says how anything works: no data flows, dependencies, technologies, versions, counts or behaviour. "Payments: how an order is charged, refunded and reconciled" is right. "Payments: the API charges the card before it saves the order" is wrong, because it becomes false when the code changes while the area stays.
+- The index names areas and says where to start looking. It never says how anything works or who owns it: no data flows, dependencies, owners, technologies, versions, counts or behaviour. "Payments: how an order is charged, refunded and reconciled" is right. "Payments: the API charges the card before it saves the order" is wrong, because it becomes false when the code changes while the area stays.
 - Only code and configuration inside the configured roots count as evidence that an area exists. Documentation, diagrams and READMEs can suggest where to look, but never justify an area on their own.
 - Area IDs are permanent. Never change an ID or reuse a retired one; quiz history is keyed by ID.
 - Never delete an area. Retire it so its history stays readable.
@@ -43,9 +43,11 @@ Everything in the roots that runs, deploys, stores data or instructs agents:
   .ignore         contains "*": hides the folder from ripgrep-based agent searches
   .gitignore      contains "learner/" when learner data is local
   learner/        quiz history, written by archquiz-quiz
-    progress.yaml
-    sessions/
-    notes/
+    <name>/       one folder per person quizzed
+      profile.yaml
+      progress.yaml
+      sessions/
+      notes/
 ```
 
 The `.ignore` file keeps quiz records and study notes out of ordinary agent searches, so no agent mistakes them for documentation. Skills read these files by explicit path.
@@ -117,11 +119,12 @@ areas:
 - Keep areas at the architecture level: components and their boundaries, how they interact, who owns which state, how things fail, what a change touches, how code reaches production. A single function is never an area.
 - Include cross-cutting areas wherever the code has them, because they span several components and are the easiest to misunderstand: end-to-end request or data flows, secrets and configuration, authentication and authorization, deployment and rollback, monitoring and alerting, failure and recovery, scheduled jobs, agent workflows.
 - Use the names the code uses.
+- If a root has a CODEOWNERS file, follow its ownership boundaries where the code allows, so that most leaves sit inside one owner's paths. The quiz uses CODEOWNERS to give each person the areas they own. Never copy owners into the index: ownership changes, so the quiz reads CODEOWNERS fresh each time.
 
 ## Exploring
 
 - List files with `git ls-files` in each root, so generated and vendored files stay out, and apply `exclude`.
-- Start from structure: directory layout, package manifests, entry points, CI workflows, deployment and infrastructure files, service units, agent instruction files.
+- Start from structure: directory layout, package manifests, entry points, CI workflows, deployment and infrastructure files, service units, agent instruction files, CODEOWNERS.
 - Read enough code to know which concern each part serves. The index does not need to know how it works.
 - Treat documentation only as a suggestion of where to look, and confirm every suggested area in code.
 - For a large scope, if your agent can run subagents, give each root or each top-level group to a fresh subagent that returns candidate areas with hints. Merge the results yourself: cross-cutting areas only show up in the merged view.

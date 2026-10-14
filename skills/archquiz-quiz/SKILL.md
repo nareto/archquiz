@@ -2,18 +2,19 @@
 name: archquiz-quiz
 description: >-
   Run a short architecture quiz on the current codebase using the .archquiz/
-  area index: pick areas from past scores, write questions and an answer key
-  from the current code, ask them, score each area, then review the answers and
-  discuss fixes, issues or study notes. Use when the user asks to be quizzed on
-  how their system works, or for their regular architecture review.
+  area index: pick areas from the parts the user owns and their past scores,
+  write questions and an answer key from the current code, ask them, score
+  each area, then review the answers and discuss fixes, issues or study notes.
+  Use when the user asks to be quizzed on how their system works, or for their
+  regular architecture review.
 compatibility: Requires git, an .archquiz/ folder created by the archquiz-index skill, and a coding agent that can read files and run shell commands.
 metadata:
-  version: "0.2.1"
+  version: "0.3.0"
 ---
 
 # Architecture quiz
 
-A session takes about ten minutes of the user's answering time. It tests whether the user understands how the system works at the architecture level, scores them per area, and turns every wrong answer into one of three things: learning, a corrected answer key, or a change to the system.
+A session takes about ten minutes of the user's answering time. It tests whether the user understands how their part of the system works at the architecture level, scores them per area, and turns every wrong answer into one of three things: learning, a corrected answer key, or a change to the system.
 
 The session runs in six phases: pick areas, prepare questions, ask, grade and review, discuss, record.
 
@@ -30,12 +31,23 @@ The session runs in six phases: pick areas, prepare questions, ask, grade and re
 
 1. Find the repository root with `git rev-parse --show-toplevel` and read `.archquiz/config.yaml` and `.archquiz/index.yaml`. The files under `.archquiz/` are hidden from ripgrep, so open them by path. If either file is missing, if `format_version` is not 1, or if the index has no active leaf areas, stop and tell the user to run the `archquiz-index` skill.
 2. Record the current commit of each root with `git -C <root> rev-parse --short HEAD`, and mark a root as dirty if `git status` shows uncommitted changes. Uncommitted changes are part of the evidence.
-3. Read `.archquiz/learner/progress.yaml` if it exists. If it is missing but sessions exist, or it disagrees with them, rebuild it from the session files (see Scheduling).
-4. If the user asked for particular areas or a different length, follow that instead of the defaults below.
+3. Find the learner folder: the folder under `.archquiz/learner/` whose `profile.yaml` lists the output of `git config user.email`. If there is none, ask the user for a short name (suggest one from `git config user.name`) and create `.archquiz/learner/<name>/profile.yaml` (see File formats). If `progress.yaml`, `sessions/` or `notes/` sit directly in `.archquiz/learner/`, from before learner folders existed, move them into this folder. From here on, `progress.yaml`, `sessions/` and `notes/` mean the ones in the learner folder.
+4. Read `progress.yaml` if it exists. If it is missing but sessions exist, or it disagrees with them, rebuild it from the session files (see Scheduling).
+5. Work out the user's part (see below).
+6. If the user asked for particular areas or a different length, follow that instead of the defaults below, even for areas outside their part.
+
+## The user's part
+
+Each person is quizzed on the parts of the system they own. Ownership comes from CODEOWNERS files, read fresh each session and never copied into the index or the session file.
+
+1. Look for a CODEOWNERS file in each root: at the top level or in `.github/`, `.gitlab/`, `.gitea/` or `docs/`. If no root has one, the user's part is the whole index.
+2. If the profile has no `codeowners` list yet, show the user the owners named in the files and ask which are theirs: their username, their email and every team they belong to. CODEOWNERS names teams but not their members, so only the user can tell you. Save the answer in the profile. An empty list means the whole index.
+3. An area is in the user's part when a CODEOWNERS line naming one of their entries matches one of the area's hints or a file under them. Patterns follow `.gitignore` syntax. Count every matching line, not only the last one, which is the only one the forge uses for review requests: someone who owns a whole folder should understand the parts others own inside it.
+4. If the user's part has no active leaf areas, say so and offer the whole index.
 
 ## Phase 1: pick areas
 
-Candidates are the active leaf areas of the index. Picking is your judgement, guided by `session.selection` in the config if it is set, and otherwise by this default mix for a session of four areas:
+Candidates are the active leaf areas in the user's part. Picking is your judgement, guided by `session.selection` in the config if it is set, and otherwise by this default mix for a session of four areas:
 
 - two areas never asked before;
 - one due area with the lowest last score;
@@ -43,7 +55,7 @@ Candidates are the active leaf areas of the index. Picking is your judgement, gu
 
 An area is due when its `next_due` date is today or earlier. When a slot has no candidate, fill it from the others: due areas first, then new areas, then the areas closest to being due. Among equal candidates, prefer areas from different top-level groups, cross-cutting areas, and areas whose hinted paths changed since they were last asked (`git -C <root> log --since=<last_asked> -- <paths>`).
 
-Create the session file `.archquiz/learner/sessions/<YYYY-MM-DD-HHMM>.md` from the template below, without question blocks, with each picked area and a one-line reason for picking it. Create the `learner/` folders if they don't exist.
+Create the session file `sessions/<YYYY-MM-DD-HHMM>.md` in the learner folder from the template below, without question blocks, with each picked area and a one-line reason for picking it. Create the folders if they don't exist.
 
 ## Phase 2: prepare questions
 
@@ -81,7 +93,7 @@ Invite the user to challenge grades, ask follow-up questions or dig deeper into 
 Record each outcome in the question's Outcome subsection.
 - **The code is wrong**, because it does not do what the user intends. Offer to fix it now through the repository's normal workflow, to file an issue in the project's tracker, or just to record it. If the intent can be enforced by a deterministic check, such as a test, a dependency rule or a CI check, suggest adding one so the code cannot drift back.
 
-For each area scored below 80%, offer study notes. Write them only if the user agrees, to `.archquiz/learner/notes/<YYYY-MM-DD>-<area-id>.md`. Build them from the current code rather than from the session's answer key, and cite evidence for every claim. Notes can include a Mermaid diagram, a reading path through the code, and a few practice questions. Start each note with the header template below.
+For each area scored below 80%, offer study notes. Write them only if the user agrees, to `notes/<YYYY-MM-DD>-<area-id>.md` in the learner folder. Build them from the current code rather than from the session's answer key, and cite evidence for every claim. Notes can include a Mermaid diagram, a reading path through the code, and a few practice questions. Start each note with the header template below.
 
 ## Phase 6: record
 
@@ -101,6 +113,18 @@ Each area sits in a box from 1 to 6. The boxes have these intervals: 1, 3, 7, 14
 To rebuild `progress.yaml`, replay the area scores from the session frontmatter, oldest session first.
 
 ## File formats
+
+### profile.yaml
+
+```yaml
+format_version: 1
+name: bob
+emails:                   # git user.email values that identify this learner
+  - bob@example.com
+codeowners:               # CODEOWNERS entries that mean this learner; absent until asked
+  - "@bob"
+  - "@example/web-team"
+```
 
 ### Session file
 
